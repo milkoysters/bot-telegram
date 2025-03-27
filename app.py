@@ -2,17 +2,16 @@ import requests
 from bs4 import BeautifulSoup
 import time
 import os
-from threading import Thread
 
 # Lấy thông tin từ biến môi trường
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-# Danh sách người dùng X và caption riêng (bạn có thể thay đổi tại đây)
+# Danh sách người dùng X và caption riêng (bạn thay đổi tại đây)
 X_USERS = {
-    "CRYBABY0430": "Connect w/ her: https://linktr.ee/CRYBABY_0430",
-    "kyoncy_ex": "Connect w/ her:  https://linktr.ee/CRYBABY_0430",
-    "salvatore90822": "Connect w/ her: https://getallmylinks.com/qiqi"
+    "username1": "Ảnh mới từ User1",
+    "username2": "Hình ảnh độc quyền từ User2",
+    "username3": "Cập nhật ảnh từ User3"
 }
 
 # File để lưu danh sách ảnh đã xử lý
@@ -93,13 +92,9 @@ def fetch_latest_photos_from_x():
         except Exception as e:
             print(f"Lỗi khi lấy ảnh từ {user}: {e}")
 
-# Chạy bot trong luồng riêng
-def run_bot():
+# Chạy bot liên tục
+if __name__ == "__main__":
+    print("Bot đang khởi động trên Render (Background Worker)...")
     while True:
         fetch_latest_photos_from_x()
         time.sleep(300)  # Kiểm tra mỗi 5 phút
-
-if __name__ == "__main__":
-    print("Bot đang khởi động trên Render...")
-    bot_thread = Thread(target=run_bot)
-    bot_thread.start()
