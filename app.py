@@ -1,15 +1,10 @@
 import time
 import os
-from flask import Flask
+import requests
+from bs4 import BeautifulSoup
 import logging
 from threading import Thread
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import WebDriverException
-import requests
+from flask import Flask
 
 # Thiết lập logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -30,6 +25,20 @@ X_USERS = {
 }
 
 PROCESSED_FILE = "processed_images.txt"
+
+# Headers giả lập trình duyệt hiện đại
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+}
 
 def send_photo_to_telegram(photo_url, caption):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
@@ -63,51 +72,32 @@ def save_processed_image(photo_url):
 def fetch_latest_photos_from_x():
     processed_images = load_processed_images()
     
-    # Cấu hình Selenium
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-    
-    driver = None
-    try:
-        logger.info("Khởi tạo Chrome driver...")
-        driver = webdriver.Chrome(options=chrome_options)
-        logger.info("Chrome driver khởi tạo thành công")
-    except WebDriverException as e:
-        logger.error(f"Lỗi khởi tạo Chrome driver: {e}")
-        return
-    
     for user, caption in X_USERS.items():
         try:
-            url = f"https://twitter.com/{user}"
+            url = f"https://x.com/{user}"
             logger.info(f"Đang truy cập {url}")
-            driver.get(url)
+            response = requests.get(url, headers=HEADERS, timeout=10)
             
-            # Chờ tweet xuất hiện (tối đa 20 giây)
-            logger.info(f"Đang chờ tweet từ {user}...")
-            WebDriverWait(driver, 20).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "div[data-testid='tweet']"))
-            )
-            
-            # Tìm các bài viết
-            tweets = driver.find_elements(By.CSS_SELECTOR, "div[data-testid='tweet']")
+            if response.status_code != 200:
+                logger.warning(f"Không thể truy cập {user}: {response.status_code}")
+                continue
+
+            soup = BeautifulSoup(response.text, "html.parser")
+            tweets = soup.select("article div[data-testid='tweet']")
             if not tweets:
                 logger.info(f"Không tìm thấy bài viết từ {user}")
                 continue
 
             for tweet in tweets:
                 # Kiểm tra retweet
-                is_retweet = len(tweet.find_elements(By.XPATH, ".//*[contains(text(), 'Retweeted')]")) > 0 or "RT @" in tweet.text
+                is_retweet = tweet.find("span", string=lambda text: text and "Retweeted" in text) or "RT @" in tweet.get_text()
                 if is_retweet:
                     continue
 
                 # Tìm ảnh
-                images = tweet.find_elements(By.CSS_SELECTOR, "img[src*='media']")
+                images = tweet.select("img[src*='media']")
                 if images:
-                    latest_image = images[0].get_attribute("src")
+                    latest_image = images[0]["src"]
                     if not latest_image.startswith("http"):
                         latest_image = "https:" + latest_image
 
@@ -124,15 +114,12 @@ def fetch_latest_photos_from_x():
 
         except Exception as e:
             logger.error(f"Lỗi khi lấy ảnh từ {user}: {e}")
-    
-    if driver:
-        driver.quit()
 
 def run_bot():
     logger.info("Bắt đầu vòng lặp bot...")
     while True:
         fetch_latest_photos_from_x()
-        time.sleep(300)
+        time.sleep(300)  # Kiểm tra mỗi 5 phút
 
 @app.route('/')
 def health_check():
