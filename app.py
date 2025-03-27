@@ -6,22 +6,25 @@ from threading import Thread
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+import requests
 
 # Thiết lập logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Khởi tạo Flask app cho Web Service
+# Khởi tạo Flask app
 app = Flask(__name__)
 
 # Lấy thông tin từ biến môi trường
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-# Danh sách người dùng X và caption riêng (thay đổi tại đây)
+# Danh sách người dùng X và caption riêng
 X_USERS = {
     "littlekycap": "Ảnh mới từ Milk Oysters",
-    "Miyana777": "Hình ảnh độc quyền từ User2",
+    "milkoysters": "Hình ảnh độc quyền từ User2",
     "nyanchan2k3": "Cập nhật ảnh từ User3"
 }
 
@@ -35,7 +38,6 @@ def send_photo_to_telegram(photo_url, caption):
         "caption": f"{caption} (ngày {time.strftime('%Y-%m-%d %H:%M:%S')})"
     }
     try:
-        import requests
         response = requests.get(url, params=params, timeout=10)
         if response.status_code == 200:
             logger.info(f"Đã gửi ảnh: {photo_url}")
@@ -62,26 +64,38 @@ def fetch_latest_photos_from_x():
     
     # Cấu hình Selenium
     chrome_options = Options()
-    chrome_options.add_argument("--headless")  # Chạy không giao diện
+    chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    driver = webdriver.Chrome(options=chrome_options)
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+    
+    try:
+        driver = webdriver.Chrome(options=chrome_options)
+    except Exception as e:
+        logger.error(f"Lỗi khởi tạo Chrome driver: {e}")
+        return
     
     for user, caption in X_USERS.items():
         try:
             url = f"https://twitter.com/{user}"
+            logger.info(f"Đang truy cập {url}")
             driver.get(url)
-            time.sleep(5)  # Chờ trang tải JavaScript
+            
+            # Chờ tweet xuất hiện (tối đa 20 giây)
+            WebDriverWait(driver, 20).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "div[data-testid='tweet']"))
+            )
             
             # Tìm các bài viết
-            tweets = driver.find_elements(By.CSS_SELECTOR, "article[data-testid='tweet']")
+            tweets = driver.find_elements(By.CSS_SELECTOR, "div[data-testid='tweet']")
             if not tweets:
                 logger.info(f"Không tìm thấy bài viết từ {user}")
                 continue
 
             for tweet in tweets:
                 # Kiểm tra retweet
-                is_retweet = len(tweet.find_elements(By.XPATH, ".//*[contains(text(), 'Retweet')]")) > 0 or "RT @" in tweet.text
+                is_retweet = len(tweet.find_elements(By.XPATH, ".//*[contains(text(), 'Retweeted')]")) > 0 or "RT @" in tweet.text
                 if is_retweet:
                     continue
 
@@ -100,6 +114,8 @@ def fetch_latest_photos_from_x():
                     else:
                         logger.info(f"Ảnh mới nhất từ {user} đã được xử lý: {latest_image}")
                         break
+                else:
+                    logger.info(f"Không tìm thấy ảnh trong bài viết từ {user}")
 
         except Exception as e:
             logger.error(f"Lỗi khi lấy ảnh từ {user}: {e}")
@@ -110,7 +126,7 @@ def run_bot():
     logger.info("Bắt đầu vòng lặp bot...")
     while True:
         fetch_latest_photos_from_x()
-        time.sleep(300)  # Kiểm tra mỗi 5 phút
+        time.sleep(300)
 
 @app.route('/')
 def health_check():
