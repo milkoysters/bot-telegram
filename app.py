@@ -21,8 +21,8 @@ CHAT_ID = os.getenv("CHAT_ID")
 # Danh sách người dùng X và caption riêng (thay đổi tại đây)
 X_USERS = {
     "milkoysters": "Ảnh mới từ Milk Oysters",
-    "username2": "Hình ảnh độc quyền từ User2",
-    "username3": "Cập nhật ảnh từ User3"
+    "Miyana777": "Hình ảnh độc quyền từ User2",
+    "nyanchan2k3": "Cập nhật ảnh từ User3"
 }
 
 PROCESSED_FILE = "processed_images.txt"
