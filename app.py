@@ -19,7 +19,7 @@ CHAT_ID = os.getenv("CHAT_ID")
 
 # Danh sách người dùng X và caption riêng (thay đổi tại đây)
 X_USERS = {
-    "username1": "Ảnh mới từ User1",
+    "milkoysters": "Ảnh mới từ User1",
     "username2": "Hình ảnh độc quyền từ User2",
     "username3": "Cập nhật ảnh từ User3"
 }
