@@ -17,7 +17,7 @@ app = Flask(__name__)
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-# Danh sách người dùng X và caption riêng
+# Danh sách người dùng X và caption
 X_USERS = {
     "littlekycap": "Ảnh mới từ Milk Oysters",
     "milkoysters": "Hình ảnh độc quyền từ User2",
@@ -26,19 +26,22 @@ X_USERS = {
 
 PROCESSED_FILE = "processed_images.txt"
 
-# Headers giả lập trình duyệt hiện đại
+# Headers giả lập trình duyệt
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
     "Accept-Encoding": "gzip, deflate, br",
     "Connection": "keep-alive",
-    "Upgrade-Insecure-Requests": "1",
-    "Sec-Fetch-Dest": "document",
-    "Sec-Fetch-Mode": "navigate",
-    "Sec-Fetch-Site": "none",
-    "Sec-Fetch-User": "?1",
 }
+
+# Danh sách nguồn dữ liệu thay thế
+SOURCES = [
+    {"base_url": "https://nitter.net", "tweet_selector": ".timeline-item", "retweet_check": "span.retweet-header", "img_selector": "img[src*='media']"},
+    {"base_url": "https://nitter.lacontrevoie.fr", "tweet_selector": ".timeline-item", "retweet_check": "span.retweet-header", "img_selector": "img[src*='media']"},
+    {"base_url": "https://nitter.cz", "tweet_selector": ".timeline-item", "retweet_check": "span.retweet-header", "img_selector": "img[src*='media']"},
+    # Bạn có thể thêm nguồn khác nếu tìm thấy (ví dụ: twstalker.com, nhưng cần kiểm tra)
+]
 
 def send_photo_to_telegram(photo_url, caption):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
@@ -73,47 +76,51 @@ def fetch_latest_photos_from_x():
     processed_images = load_processed_images()
     
     for user, caption in X_USERS.items():
-        try:
-            url = f"https://x.com/{user}"
-            logger.info(f"Đang truy cập {url}")
-            response = requests.get(url, headers=HEADERS, timeout=10)
+        for source in SOURCES:
+            base_url = source["base_url"]
+            tweet_selector = source["tweet_selector"]
+            retweet_check = source["retweet_check"]
+            img_selector = source["img_selector"]
             
-            if response.status_code != 200:
-                logger.warning(f"Không thể truy cập {user}: {response.status_code}")
-                continue
-
-            soup = BeautifulSoup(response.text, "html.parser")
-            tweets = soup.select("article div[data-testid='tweet']")
-            if not tweets:
-                logger.info(f"Không tìm thấy bài viết từ {user}")
-                continue
-
-            for tweet in tweets:
-                # Kiểm tra retweet
-                is_retweet = tweet.find("span", string=lambda text: text and "Retweeted" in text) or "RT @" in tweet.get_text()
-                if is_retweet:
+            try:
+                url = f"{base_url}/{user}"
+                logger.info(f"Đang truy cập {url}")
+                response = requests.get(url, headers=HEADERS, timeout=15)
+                
+                if response.status_code != 200:
+                    logger.warning(f"Không thể truy cập {user} trên {base_url}: {response.status_code}")
                     continue
 
-                # Tìm ảnh
-                images = tweet.select("img[src*='media']")
-                if images:
-                    latest_image = images[0]["src"]
-                    if not latest_image.startswith("http"):
-                        latest_image = "https:" + latest_image
+                soup = BeautifulSoup(response.text, "html.parser")
+                tweets = soup.select(tweet_selector)
+                if not tweets:
+                    logger.info(f"Không tìm thấy bài viết từ {user} trên {base_url}")
+                    continue
 
-                    if latest_image not in processed_images:
-                        if send_photo_to_telegram(latest_image, caption):
-                            save_processed_image(latest_image)
-                            processed_images.add(latest_image)
-                        break
+                for tweet in tweets:
+                    if tweet.find("span", class_=retweet_check):
+                        continue  # Bỏ qua retweet
+                    
+                    images = tweet.select(img_selector)
+                    if images:
+                        latest_image = images[0]["src"]
+                        if not latest_image.startswith("http"):
+                            latest_image = base_url + latest_image
+                        
+                        if latest_image not in processed_images:
+                            if send_photo_to_telegram(latest_image, caption):
+                                save_processed_image(latest_image)
+                            break
+                        else:
+                            logger.info(f"Ảnh mới nhất từ {user} đã được xử lý: {latest_image}")
+                            break
                     else:
-                        logger.info(f"Ảnh mới nhất từ {user} đã được xử lý: {latest_image}")
-                        break
-                else:
-                    logger.info(f"Không tìm thấy ảnh trong bài viết từ {user}")
+                        logger.info(f"Không tìm thấy ảnh trong bài viết từ {user} trên {base_url}")
+                break  # Thoát vòng lặp nguồn nếu thành công
 
-        except Exception as e:
-            logger.error(f"Lỗi khi lấy ảnh từ {user}: {e}")
+            except Exception as e:
+                logger.error(f"Lỗi khi lấy ảnh từ {user} trên {base_url}: {e}")
+                time.sleep(5)  # Chờ trước khi thử nguồn khác
 
 def run_bot():
     logger.info("Bắt đầu vòng lặp bot...")
