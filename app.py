@@ -36,12 +36,11 @@ HEADERS = {
     "Connection": "keep-alive",
 }
 
-# Danh sách nguồn dữ liệu thay thế (cập nhật mới nhất)
+# Danh sách nguồn dữ liệu thay thế
 SOURCES = [
     {"base_url": "https://nitter.tux.pizza", "tweet_selector": ".timeline-item", "retweet_check": "span.retweet-header", "img_selector": "img[src*='media']"},
-    {"base_url": "https://nitter.privacydev.net", "tweet_selector": ".timeline-item", "retweet_check": "span.retweet-header", "img_selector": "img[src*='media']"},
     {"base_url": "https://nitter.unixfox.eu", "tweet_selector": ".timeline-item", "retweet_check": "span.retweet-header", "img_selector": "img[src*='media']"},
-    {"base_url": "https://twstalker.com", "tweet_selector": ".tw-tweet", "retweet_check": "span.retweet", "img_selector": "img[src*='media']"},
+    {"base_url": "https://twitnow.com", "tweet_selector": ".tweet", "retweet_check": "span.retweet", "img_selector": "img[src*='media']"},
 ]
 
 def send_photo_to_telegram(photo_url, caption):
@@ -87,18 +86,18 @@ def fetch_latest_photos_from_x():
             try:
                 url = f"{base_url}/{user}"
                 logger.info(f"Đang truy cập {url} (lần thử {attempt + 1})")
-                response = requests.get(url, headers=HEADERS, timeout=30)  # Tăng timeout lên 30 giây
+                response = requests.get(url, headers=HEADERS, timeout=30)
                 
                 if response.status_code != 200:
                     logger.warning(f"Không thể truy cập {user} trên {base_url}: {response.status_code}")
-                    time.sleep(5)
+                    time.sleep(10)
                     continue
 
                 soup = BeautifulSoup(response.text, "html.parser")
                 tweets = soup.select(tweet_selector)
                 if not tweets:
                     logger.info(f"Không tìm thấy bài viết từ {user} trên {base_url}")
-                    time.sleep(5)
+                    time.sleep(10)
                     continue
 
                 for tweet in tweets:
@@ -124,13 +123,13 @@ def fetch_latest_photos_from_x():
 
             except Exception as e:
                 logger.error(f"Lỗi khi lấy ảnh từ {user} trên {base_url}: {e}")
-                time.sleep(5)  # Chờ trước khi thử lại
+                time.sleep(10)
 
 def run_bot():
     logger.info("Bắt đầu vòng lặp bot...")
     while True:
         fetch_latest_photos_from_x()
-        time.sleep(600)  # Tăng lên 10 phút để tránh chặn IP
+        time.sleep(600)  # 10 phút để tránh chặn IP
 
 @app.route('/')
 def health_check():
