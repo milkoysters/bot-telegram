@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 import logging
 from threading import Thread
 from flask import Flask
+import random
 
 # Thiết lập logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -35,12 +36,12 @@ HEADERS = {
     "Connection": "keep-alive",
 }
 
-# Danh sách nguồn dữ liệu thay thế
+# Danh sách nguồn dữ liệu thay thế (cập nhật mới nhất)
 SOURCES = [
-    {"base_url": "https://nitter.net", "tweet_selector": ".timeline-item", "retweet_check": "span.retweet-header", "img_selector": "img[src*='media']"},
-    {"base_url": "https://nitter.lacontrevoie.fr", "tweet_selector": ".timeline-item", "retweet_check": "span.retweet-header", "img_selector": "img[src*='media']"},
-    {"base_url": "https://nitter.cz", "tweet_selector": ".timeline-item", "retweet_check": "span.retweet-header", "img_selector": "img[src*='media']"},
-    # Bạn có thể thêm nguồn khác nếu tìm thấy (ví dụ: twstalker.com, nhưng cần kiểm tra)
+    {"base_url": "https://nitter.tux.pizza", "tweet_selector": ".timeline-item", "retweet_check": "span.retweet-header", "img_selector": "img[src*='media']"},
+    {"base_url": "https://nitter.privacydev.net", "tweet_selector": ".timeline-item", "retweet_check": "span.retweet-header", "img_selector": "img[src*='media']"},
+    {"base_url": "https://nitter.unixfox.eu", "tweet_selector": ".timeline-item", "retweet_check": "span.retweet-header", "img_selector": "img[src*='media']"},
+    {"base_url": "https://twstalker.com", "tweet_selector": ".tw-tweet", "retweet_check": "span.retweet", "img_selector": "img[src*='media']"},
 ]
 
 def send_photo_to_telegram(photo_url, caption):
@@ -76,7 +77,8 @@ def fetch_latest_photos_from_x():
     processed_images = load_processed_images()
     
     for user, caption in X_USERS.items():
-        for source in SOURCES:
+        for attempt in range(3):  # Thử tối đa 3 lần
+            source = random.choice(SOURCES)  # Chọn ngẫu nhiên nguồn
             base_url = source["base_url"]
             tweet_selector = source["tweet_selector"]
             retweet_check = source["retweet_check"]
@@ -84,22 +86,24 @@ def fetch_latest_photos_from_x():
             
             try:
                 url = f"{base_url}/{user}"
-                logger.info(f"Đang truy cập {url}")
-                response = requests.get(url, headers=HEADERS, timeout=15)
+                logger.info(f"Đang truy cập {url} (lần thử {attempt + 1})")
+                response = requests.get(url, headers=HEADERS, timeout=30)  # Tăng timeout lên 30 giây
                 
                 if response.status_code != 200:
                     logger.warning(f"Không thể truy cập {user} trên {base_url}: {response.status_code}")
+                    time.sleep(5)
                     continue
 
                 soup = BeautifulSoup(response.text, "html.parser")
                 tweets = soup.select(tweet_selector)
                 if not tweets:
                     logger.info(f"Không tìm thấy bài viết từ {user} trên {base_url}")
+                    time.sleep(5)
                     continue
 
                 for tweet in tweets:
                     if tweet.find("span", class_=retweet_check):
-                        continue  # Bỏ qua retweet
+                        continue
                     
                     images = tweet.select(img_selector)
                     if images:
@@ -116,17 +120,17 @@ def fetch_latest_photos_from_x():
                             break
                     else:
                         logger.info(f"Không tìm thấy ảnh trong bài viết từ {user} trên {base_url}")
-                break  # Thoát vòng lặp nguồn nếu thành công
+                break  # Thoát nếu thành công
 
             except Exception as e:
                 logger.error(f"Lỗi khi lấy ảnh từ {user} trên {base_url}: {e}")
-                time.sleep(5)  # Chờ trước khi thử nguồn khác
+                time.sleep(5)  # Chờ trước khi thử lại
 
 def run_bot():
     logger.info("Bắt đầu vòng lặp bot...")
     while True:
         fetch_latest_photos_from_x()
-        time.sleep(300)  # Kiểm tra mỗi 5 phút
+        time.sleep(600)  # Tăng lên 10 phút để tránh chặn IP
 
 @app.route('/')
 def health_check():
