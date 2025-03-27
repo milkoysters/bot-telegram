@@ -8,6 +8,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import WebDriverException
 import requests
 
 # Thiết lập logging
@@ -70,9 +71,12 @@ def fetch_latest_photos_from_x():
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
     
+    driver = None
     try:
+        logger.info("Khởi tạo Chrome driver...")
         driver = webdriver.Chrome(options=chrome_options)
-    except Exception as e:
+        logger.info("Chrome driver khởi tạo thành công")
+    except WebDriverException as e:
         logger.error(f"Lỗi khởi tạo Chrome driver: {e}")
         return
     
@@ -83,6 +87,7 @@ def fetch_latest_photos_from_x():
             driver.get(url)
             
             # Chờ tweet xuất hiện (tối đa 20 giây)
+            logger.info(f"Đang chờ tweet từ {user}...")
             WebDriverWait(driver, 20).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, "div[data-testid='tweet']"))
             )
@@ -120,7 +125,8 @@ def fetch_latest_photos_from_x():
         except Exception as e:
             logger.error(f"Lỗi khi lấy ảnh từ {user}: {e}")
     
-    driver.quit()
+    if driver:
+        driver.quit()
 
 def run_bot():
     logger.info("Bắt đầu vòng lặp bot...")
