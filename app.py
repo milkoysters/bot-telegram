@@ -114,7 +114,7 @@ if __name__ == "__main__":
     logger.info("Bot đang khởi động trên Render (Web Service)...")
     # Chạy bot trong thread riêng
     bot_thread = Thread(target=run_bot)
-    bot_thread.daemon = True  # Đảm bảo thread dừng khi Flask dừng
+    bot_thread.daemon = True
     bot_thread.start()
     
     # Chạy Flask trong luồng chính
