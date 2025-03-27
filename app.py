@@ -10,9 +10,9 @@ CHAT_ID = os.getenv("CHAT_ID")
 
 # Danh sách người dùng X và caption riêng (bạn có thể thay đổi tại đây)
 X_USERS = {
-    "username1": "Ảnh mới từ User1",
-    "username2": "Hình ảnh độc quyền từ User2",
-    "username3": "Cập nhật ảnh từ User3"
+    "CRYBABY0430": "Connect w/ her: https://linktr.ee/CRYBABY_0430",
+    "kyoncy_ex": "Connect w/ her:  https://linktr.ee/CRYBABY_0430",
+    "salvatore90822": "Connect w/ her: https://getallmylinks.com/qiqi"
 }
 
 # File để lưu danh sách ảnh đã xử lý
